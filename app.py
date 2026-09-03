@@ -9,11 +9,11 @@ import time
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Eksperyment: Biased Coin Flip", layout="wide")
 
-# --- GLOBALNY MAGAZYN DANYCH (Współdzielony między wszystkimi telefonami a ekranem) ---
+# --- GLOBALNY MAGAZYN DANYCH ---
 @st.cache_resource
 def get_global_store():
     return {
-        "players": {},            # {nazwa_gracza: procent_kapitału}
+        "players": {},            # {nazwa_gracza: procent_kapitatu}
         "simulation_started": False
     }
 
@@ -40,7 +40,6 @@ if role == "player":
             if submitted:
                 name_clean = player_name.strip()
                 if name_clean != "":
-                    # Zapis do globalnego store
                     global_store["players"][name_clean] = bet_pct / 100.0
                     st.session_state["submitted"] = True
                     st.session_state["my_name"] = name_clean
@@ -56,10 +55,10 @@ if role == "player":
 else:
     st.title("📊 Eksperyment Decyzyjny: Symulacja Rzutu Monetą (60/40)")
 
-    # Przycisk restartu widoczny na samej górze dla prezentera
+    # Przycisk resetu w prawym górnym rogu
     top_col1, top_col2 = st.columns([4, 1])
     with top_col2:
-        if st.button("🔄 Resetuj eksperyment", use_container_width=True):
+        if st.button("🧹 Resetuj wszystko (Nowi gracze)", use_container_width=True):
             global_store["players"] = {}
             global_store["simulation_started"] = False
             st.rerun()
@@ -98,7 +97,6 @@ else:
                     global_store["simulation_started"] = True
                     st.rerun()
 
-        # Automatyczne odświeżanie ekranu głównego co 2 sekundy w poszukiwaniu nowych graczy
         time.sleep(2)
         st.rerun()
 
@@ -114,7 +112,7 @@ else:
         history = np.zeros((num_flips + 1, len(player_names)))
         history[0, :] = 100.0
 
-        # W PEŁNI LOSOWE RZUTY (brak seeda) – każdy przebieg symulacji jest unikalny!
+        # W PEŁNI LOSOWE RZUTY
         outcomes = np.random.choice([1, -1], size=num_flips, p=[0.60, 0.40])
 
         plot_spot = st.empty()
@@ -170,7 +168,7 @@ else:
                 m2.metric("Mediana kapitału sali", f"{medians[-1]:.2f} $")
                 m3.metric("Liczba bankructw (<1 $)", f"{np.sum(current_history[-1, :] < 1)}")
 
-            time.sleep(0.1)
+            time.sleep(0.05)
 
         # Krok C: Wykres końcowy po 100 rzutach
         st.subheader("📊 Finalne wyniki uczestników")
@@ -197,8 +195,43 @@ else:
         st.plotly_chart(fig_bar, use_container_width=True)
         st.dataframe(final_df, use_container_width=True)
 
-        # Dodatkowy przycisk na dole po zakończeniu symulacji
-        if st.button("🔄 Rozpocznij kolejną symulację z nowymi rzutami", type="primary"):
-            global_store["players"] = {}
-            global_store["simulation_started"] = False
-            st.rerun()
+        # --- TABELA HISTORII DLA ZWYCIĘZCY ---
+        winner_name = final_df.iloc[0]["Gracz"]
+        winner_idx = player_names.index(winner_name)
+        winner_pct = percentages[winner_idx]
+
+        st.subheader(f"🏆 Historia rzutów dla zwycięzcy: {winner_name} (Stawka: {winner_pct*100:.0f}%)")
+        
+        winner_rows = []
+        for r in range(1, num_flips + 1):
+            start_cap = history[r-1, winner_idx]
+            bet_val = start_cap * winner_pct
+            res = outcomes[r-1]
+            end_cap = history[r, winner_idx]
+            
+            winner_rows.append({
+                "Rzut #": r,
+                "Kapitał Początkowy ($)": round(start_cap, 2),
+                "Wartość Obstawienia ($)": round(bet_val, 2),
+                "Wynik Rzutu": "WYGRANA (+)" if res == 1 else "PRZEGRANA (-)",
+                "Kapitał Po Rzucie ($)": round(end_cap, 2)
+            })
+
+        winner_history_df = pd.DataFrame(winner_rows)
+        
+        with st.expander(f"🔍 Kliknij, aby zobaczyć pełną historię 100 rzutów gracza {winner_name}"):
+            st.dataframe(winner_history_df, use_container_width=True, height=400)
+
+        # --- AKCJE PO ZAKOŃCZENIU SYMULACJI ---
+        st.markdown("---")
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            if st.button("🎲 Ponów rzuty dla TYCH SAMYCH graczy", type="primary", use_container_width=True):
+                st.rerun()
+
+        with c2:
+            if st.button("🧹 Resetuj wszystko (Nowy eksperyment)", use_container_width=True):
+                global_store["players"] = {}
+                global_store["simulation_started"] = False
+                st.rerun()
