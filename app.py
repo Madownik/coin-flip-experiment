@@ -34,7 +34,7 @@ if role == "player":
         with st.form("player_form"):
             player_name = st.text_input("Twoje Imię / Nick:", value="")
             bet_pct = st.slider("Jaki % AKTUALNEGO kapitału stawiasz w każdym rzucie?",
-                                min_value=1, max_value=100, value=20, step=1)
+                                min_value=1, max_value=100, value=50, step=1)
             submitted = st.form_submit_button("Zatwierdź strategię")
 
             if submitted:
