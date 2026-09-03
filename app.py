@@ -13,7 +13,7 @@ st.set_page_config(page_title="Eksperyment: Biased Coin Flip", layout="wide")
 @st.cache_resource
 def get_global_store():
     return {
-        "players": {},            # {nazwa_gracza: procent_kapitatu}
+        "players": {},            # {nazwa_gracza: procent_kapitału}
         "simulation_started": False
     }
 
@@ -55,6 +55,14 @@ if role == "player":
 # --- WIDOK 2: EKRAN GŁÓWNY PREZENTERA ---
 else:
     st.title("📊 Eksperyment Decyzyjny: Symulacja Rzutu Monetą (60/40)")
+
+    # Przycisk restartu widoczny na samej górze dla prezentera
+    top_col1, top_col2 = st.columns([4, 1])
+    with top_col2:
+        if st.button("🔄 Resetuj eksperyment", use_container_width=True):
+            global_store["players"] = {}
+            global_store["simulation_started"] = False
+            st.rerun()
 
     # Krok A: Połączenia i QR kod
     if not global_store["simulation_started"]:
@@ -106,7 +114,7 @@ else:
         history = np.zeros((num_flips + 1, len(player_names)))
         history[0, :] = 100.0
 
-        np.random.seed(42)
+        # W PEŁNI LOSOWE RZUTY (brak seeda) – każdy przebieg symulacji jest unikalny!
         outcomes = np.random.choice([1, -1], size=num_flips, p=[0.60, 0.40])
 
         plot_spot = st.empty()
@@ -188,3 +196,9 @@ else:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
         st.dataframe(final_df, use_container_width=True)
+
+        # Dodatkowy przycisk na dole po zakończeniu symulacji
+        if st.button("🔄 Rozpocznij kolejną symulację z nowymi rzutami", type="primary"):
+            global_store["players"] = {}
+            global_store["simulation_started"] = False
+            st.rerun()
