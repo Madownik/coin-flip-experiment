@@ -13,8 +13,9 @@ st.set_page_config(page_title="Eksperyment: Biased Coin Flip", layout="wide")
 @st.cache_resource
 def get_global_store():
     return {
-        "players": {},            # {nazwa_gracza: procent_kapitatu}
-        "simulation_started": False
+        "players": {},            # {nazwa_gracza: procent_kapitału}
+        "simulation_started": False,
+        "strategies_revealed": False
     }
 
 global_store = get_global_store()
@@ -61,9 +62,10 @@ else:
         if st.button("🧹 Resetuj wszystko (Nowi gracze)", use_container_width=True):
             global_store["players"] = {}
             global_store["simulation_started"] = False
+            global_store["strategies_revealed"] = False
             st.rerun()
 
-    # Krok A: Połączenia i QR kod
+    # Krok A: Połączenia i rejestracja
     if not global_store["simulation_started"]:
         col1, col2 = st.columns([1, 2])
 
@@ -83,20 +85,48 @@ else:
             st.subheader(f"2. Zarejestrowani gracze ({len(current_players)})")
             
             if current_players:
-                players_df = pd.DataFrame(
-                    list(current_players.items()),
-                    columns=["Gracz", "Stawiany % Kapitału"]
-                )
-                players_df["Stawiany % Kapitału"] = (players_df["Stawiany % Kapitału"] * 100).astype(int).astype(str) + "%"
-                st.dataframe(players_df, height=250, use_container_width=True)
+                player_names_list = list(current_players.keys())
+                
+                # STAN 1: STRATEGIE SĄ UKRYTE (Ochrona przed Anchoring Bias)
+                if not global_store["strategies_revealed"]:
+                    st.info("🔒 Strategie graczy są ukryte, aby zapobiec sugerowaniu się wyborami innych.")
+                    
+                    # Pokazujemy tylko imiona/nicki bez stawek
+                    hidden_df = pd.DataFrame({"Gracz": player_names_list, "Stan": ["Gotowy 🟢"] * len(player_names_list)})
+                    st.dataframe(hidden_df, height=200, use_container_width=True)
+
+                    if st.button("👁️ Odkryj strategie graczy", type="primary", use_container_width=True):
+                        global_store["strategies_revealed"] = True
+                        st.rerun()
+
+                # STAN 2: STRATEGIE ODKRYTE + STATYSTYKI SALI
+                else:
+                    bets_pct = [v * 100 for v in current_players.values()]
+                    
+                    # Statystyki opisowe stawek
+                    s1, s2, s3, s4 = st.columns(4)
+                    s1.metric("Średnia stawka", f"{np.mean(bets_pct):.1f}%")
+                    s2.metric("Mediana stawek", f"{np.median(bets_pct):.1f}%")
+                    s3.metric("Najwyższy poziom", f"{np.max(bets_pct):.0f}%")
+                    s4.metric("Najniższy poziom", f"{np.min(bets_pct):.0f}%")
+
+                    # Tabela z jawnymi wartościami %
+                    revealed_df = pd.DataFrame(
+                        list(current_players.items()),
+                        columns=["Gracz", "Stawiany % Kapitału"]
+                    )
+                    revealed_df["Stawiany % Kapitału"] = (revealed_df["Stawiany % Kapitału"] * 100).astype(int).astype(str) + "%"
+                    st.dataframe(revealed_df, height=200, use_container_width=True)
+
+                    st.markdown("---")
+                    if st.button("🚀 ROZPOCZNIJ SYMULACJĘ (100 RZUTÓW)", type="primary", use_container_width=True):
+                        global_store["simulation_started"] = True
+                        st.rerun()
+
             else:
                 st.info("Czekanie na pierwszych graczy...")
 
-            if len(current_players) > 0:
-                if st.button("🚀 ROZPOCZNIJ SYMULACJĘ (100 RZUTÓW)", type="primary"):
-                    global_store["simulation_started"] = True
-                    st.rerun()
-
+        # Odświeżanie co 2 sekundy podczas zbierania graczy
         time.sleep(2)
         st.rerun()
 
@@ -112,7 +142,6 @@ else:
         history = np.zeros((num_flips + 1, len(player_names)))
         history[0, :] = 100.0
 
-        # W PEŁNI LOSOWE RZUTY
         outcomes = np.random.choice([1, -1], size=num_flips, p=[0.60, 0.40])
 
         plot_spot = st.empty()
@@ -195,7 +224,7 @@ else:
         st.plotly_chart(fig_bar, use_container_width=True)
         st.dataframe(final_df, use_container_width=True)
 
-        # --- TABELA HISTORII DLA ZWYCIĘZCY ---
+        # Historia dla zwycięzcy
         winner_name = final_df.iloc[0]["Gracz"]
         winner_idx = player_names.index(winner_name)
         winner_pct = percentages[winner_idx]
@@ -222,7 +251,7 @@ else:
         with st.expander(f"🔍 Kliknij, aby zobaczyć pełną historię 100 rzutów gracza {winner_name}"):
             st.dataframe(winner_history_df, use_container_width=True, height=400)
 
-        # --- AKCJE PO ZAKOŃCZENIU SYMULACJI ---
+        # Akcje na końcu
         st.markdown("---")
         c1, c2 = st.columns(2)
         
@@ -234,4 +263,5 @@ else:
             if st.button("🧹 Resetuj wszystko (Nowy eksperyment)", use_container_width=True):
                 global_store["players"] = {}
                 global_store["simulation_started"] = False
+                global_store["strategies_revealed"] = False
                 st.rerun()
